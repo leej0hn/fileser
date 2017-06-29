@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -53,6 +54,14 @@ public class FileServerController {
         return Response.ok(fileName);
     }
 
+    @PostMapping(value = "/api/file/delete")
+    public Response<String>  delete(@RequestParam String filename, String path ) throws IOException{
+        path = checkPath(path);
+        String newDirectory = config.getFileUploadPath() + path;
+        Files.deleteIfExists(Paths.get(newDirectory, filename));
+        return Response.ok("删除成功");
+    }
+
     @GetMapping("/api/file/download/{filename:.+}")
     @ResponseBody
     public ResponseEntity<?> fileDownload(@PathVariable String filename, String path , String isUpdate) {
@@ -81,15 +90,6 @@ public class FileServerController {
             log.error(Throwables.getStackTraceAsString(e));
             return null;
         }
-    }
-
-    @GetMapping("/api/file/delete/{filename:.+}")
-    @ResponseBody
-    public Response<String>  delete(@PathVariable String filename, String path ) throws IOException{
-        path = checkPath(path);
-        String newDirectory = config.getFileUploadPath() + path;
-        Files.deleteIfExists(Paths.get(newDirectory, filename));
-        return Response.ok("删除成功");
     }
 
     private String checkPath(String path){
