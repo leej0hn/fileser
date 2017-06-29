@@ -5,18 +5,25 @@ import io.communet.fileser.common.exception.ServiceException;
 import io.communet.fileser.common.vo.Response;
 import io.communet.fileser.web.configuration.WebConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.FileSystemUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -39,19 +46,40 @@ public class FileServerController {
     private Map<String,Object> lockMap = new ConcurrentHashMap();
 
     @PostMapping("/api/file/upload")
-    public Response<String> fileUpload(@RequestParam("uploadFile") MultipartFile uploadFile,String path) throws Exception{
+    public Response<String> fileUpload(@RequestParam("uploadFile") MultipartFile uploadFile,String path,String isUpdate) throws Exception{
         if (uploadFile.isEmpty()) {
             throw new ServiceException("uploadFile is null");
         }
         path = checkPath(path);
         String fileName = uploadFile.getOriginalFilename();
-        String newDirectory = config.getFileUploadPath() + path;
-        if( !Files.exists(Paths.get(newDirectory) ) ){
-            Files.createDirectory(Paths.get(newDirectory));
+        String key = path + fileName;
+        try{
+            if( isLock(key) ){
+                return Response.fail("存在同样的文件在上传");
+            }
+            String newDirectory = config.getFileUploadPath() + path;
+            String beforePath = config.getFileUploadPath();
+            String[] paths = path.split("/");
+            for (String p : paths) {
+                beforePath = beforePath + "/" + p;
+                if( !Files.exists(Paths.get(beforePath) ) ){
+                    Files.createDirectory(Paths.get(beforePath));
+                 }
+            }
+            //如果isUpdate等于1，需要判断文件是否存在，存在的话，文件合并
+            if( isUpdate != null && isUpdate.equals("1") ){
+                if( Files.exists(Paths.get(newDirectory , fileName) ) ){
+                    Files.write(Paths.get(newDirectory , fileName), uploadFile.getBytes(), StandardOpenOption.APPEND);
+                    return Response.ok(fileName);
+                }
+            }
+            Files.deleteIfExists(Paths.get(newDirectory, fileName));
+            Files.copy(uploadFile.getInputStream(), Paths.get(newDirectory , fileName));
+            return Response.ok(fileName);
+        }finally {
+            lockMap.remove(key);
         }
-        Files.deleteIfExists(Paths.get(newDirectory, fileName));
-        Files.copy(uploadFile.getInputStream(), Paths.get(newDirectory , fileName));
-        return Response.ok(fileName);
+
     }
 
     @PostMapping(value = "/api/file/delete")
@@ -80,7 +108,9 @@ public class FileServerController {
                     Files.createDirectory(Paths.get(tempDirectory));
                 }
                 Files.deleteIfExists(tempPath);
-                Files.copy(Paths.get(newDirectory, filename), tempPath);
+                if( Files.exists( Paths.get(newDirectory, filename) ) ){
+                    Files.copy(Paths.get(newDirectory, filename), tempPath);
+                }
                 Files.deleteIfExists(Paths.get(newDirectory, filename));
                 lockMap.remove(key);
             }
