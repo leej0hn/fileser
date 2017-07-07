@@ -37,6 +37,7 @@ public class FileServerController {
     private WebConfig config;
 
     private Map<String,Object> lockMap = new ConcurrentHashMap();
+    private String charSet = "utf-8";
 
     @PostMapping("/api/file/upload")
     public Response<String> fileUpload(@RequestParam("uploadFile") MultipartFile uploadFile,String path,String isUpdate) throws Exception{
@@ -92,7 +93,7 @@ public class FileServerController {
                     Files.createDirectory(Paths.get(beforePath));
                 }
             }
-            String charSet = "utf-8";
+
             //如果isUpdate等于1，需要判断文件是否存在，存在的话，文件合并
             if( isUpdate != null && isUpdate.equals("1") ){
                 if( Files.exists(Paths.get(newDirectory , fileName) ) ){
@@ -157,7 +158,7 @@ public class FileServerController {
             if( !Files.exists(filePath)){
                 throw new ServiceException("文件不存在");
             }
-            String content = new String(Files.readAllBytes(filePath));
+            String content = new String(Files.readAllBytes(filePath),charSet);
             if ( isUpdate != null && isUpdate.equals("1")) {//更新
                 if( isLock(key) ){
                     throw new ServiceException("文件正在修改中");
