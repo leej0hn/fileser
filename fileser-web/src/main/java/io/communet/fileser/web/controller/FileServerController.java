@@ -3,6 +3,7 @@ package io.communet.fileser.web.controller;
 import com.google.common.base.Throwables;
 import io.communet.fileser.common.exception.ServiceException;
 import io.communet.fileser.common.vo.Response;
+import io.communet.fileser.utils.UnicodeUtil;
 import io.communet.fileser.web.configuration.WebConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,7 +11,6 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,6 +39,7 @@ public class FileServerController {
     private Map<String,Object> lockMap = new ConcurrentHashMap();
     private String charSet = "utf-8";
 
+    /*
     @PostMapping("/api/file/upload")
     public Response<String> fileUpload(@RequestParam("uploadFile") MultipartFile uploadFile,String path,String isUpdate) throws Exception{
         if (uploadFile.isEmpty()) {
@@ -75,9 +76,14 @@ public class FileServerController {
         }
 
     }
+    */
 
     @PostMapping("/api/text/upload")
     public Response<String> textUpload(String fileName,String content,String path,String isUpdate) throws Exception{
+        fileName = UnicodeUtil.unicodeToUtf8(fileName);
+        path = UnicodeUtil.unicodeToUtf8(path);
+        content = UnicodeUtil.unicodeToUtf8(content);
+
         path = checkPath(path);
         String key = path + fileName;
         try{
@@ -110,7 +116,8 @@ public class FileServerController {
     }
 
     @PostMapping(value = "/api/file/delete")
-    public Response<String>  delete(@RequestParam String filename, String path ) throws IOException{
+    public Response<String>  delete(@RequestParam String filename, String path ) throws IOException {
+        path = UnicodeUtil.unicodeToUtf8(path);
         path = checkPath(path);
         String newDirectory = config.getFileUploadPath() + path;
         Files.deleteIfExists(Paths.get(newDirectory, filename));
@@ -121,6 +128,9 @@ public class FileServerController {
     @ResponseBody
     public ResponseEntity<?> fileDownload(@PathVariable String filename, String path , String isUpdate) {
         try {
+            filename = UnicodeUtil.unicodeToUtf8(filename);
+            path = UnicodeUtil.unicodeToUtf8(path);
+
             path = checkPath(path);
             String key = path + filename;
             String newDirectory = config.getFileUploadPath() + path;
@@ -151,6 +161,9 @@ public class FileServerController {
 
     @GetMapping("/api/text/download")
     public Response<String> textDownload(String filename, String path , String isUpdate) throws Exception{
+            filename = UnicodeUtil.unicodeToUtf8(filename);
+            path = UnicodeUtil.unicodeToUtf8(path);
+
             path = checkPath(path);
             String key = path + filename;
             String newDirectory = config.getFileUploadPath() + path;
@@ -191,5 +204,8 @@ public class FileServerController {
         }
         return flag;
     }
+
+
+
 
 }
