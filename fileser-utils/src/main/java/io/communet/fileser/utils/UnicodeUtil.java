@@ -12,6 +12,9 @@ public class UnicodeUtil {
      * @return
      */
     public static String unicodeToUtf8(String theString) {
+        if( theString == null || theString.equals("") ){
+            return null;
+        }
         char aChar;
         int len = theString.length();
         StringBuffer outBuffer = new StringBuffer(len);

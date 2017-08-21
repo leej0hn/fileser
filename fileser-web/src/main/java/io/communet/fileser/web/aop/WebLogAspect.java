@@ -1,5 +1,6 @@
 package io.communet.fileser.web.aop;
 
+import io.communet.fileser.utils.UnicodeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.AfterReturning;
@@ -57,7 +58,7 @@ public class WebLogAspect {
         for (Map.Entry<String, String[]> entry : parameterMap.entrySet()) {
             postData.append(entry.getKey()+" : ");
             for (String value : entry.getValue()) {
-                postData.append(value +"; ");
+                postData.append(UnicodeUtil.unicodeToUtf8(value) +"; ");
             }
         }
         log.info("=======response after===========\n [ContentType: {}/{}]-[method: {}]-[sessionId: {}] \n [url: {}] \n [params: {}]-[postData: {}] \n [respons: {}].",
