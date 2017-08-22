@@ -21,7 +21,7 @@ public class ExceptionAdvice {
 //    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @ResponseBody
     public Object exception(Exception exception) {
-        log.error(Throwables.getStackTraceAsString(exception));
+        log.error(exception.getMessage());
         return Response.fail(exception.getMessage());
     }
 }
