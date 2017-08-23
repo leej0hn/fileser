@@ -96,11 +96,14 @@ public class FileServerController {
             }
             String content = new String(Files.readAllBytes(filePath),charSet);
             if ( isUpdate != null && isUpdate.equals("1")) {//更新
-                if( isLock(key) ){
-                    throw new ServiceException("文件正在修改中");
+                try{
+                    if( isLock(key) ){
+                        throw new ServiceException("文件正在修改中");
+                    }
+                    Files.deleteIfExists(filePath);
+                }finally {
+                    lockMap.remove(key);
                 }
-                Files.deleteIfExists(filePath);
-                lockMap.remove(key);
             }
             return Response.ok(content);
     }
