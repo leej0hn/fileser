@@ -6,13 +6,16 @@ import io.communet.fileser.common.vo.Response;
 import io.communet.fileser.utils.UnicodeUtil;
 import io.communet.fileser.web.configuration.WebConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.ResourceLoader;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
+import javax.servlet.http.HttpServletResponse;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -27,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Version: 1.0
  */
 @Slf4j
-@RestController()
+@RestController
 public class FileServerController {
     private static String TEMP_DIR = "/temp";
     @Autowired
@@ -51,16 +54,7 @@ public class FileServerController {
             if( isLock(key) ){
                 return Response.fail("存在同样的文本内容在上传");
             }
-            String newDirectory = config.getFileUploadPath() + path;
-            String beforePath = config.getFileUploadPath();
-            String[] paths = path.split("/");
-            for (String p : paths) {
-                beforePath = beforePath + "/" + p;
-                if( !Files.exists(Paths.get(beforePath) ) ){
-                    Files.createDirectory(Paths.get(beforePath));
-                }
-            }
-
+            String newDirectory = createChildFile(path);
             //如果isUpdate等于1，需要判断文件是否存在，存在的话，文件合并
             if( isUpdate != null && isUpdate.equals("1") ){
                 if( Files.exists(Paths.get(newDirectory , fileName) ) ){
@@ -132,9 +126,8 @@ public class FileServerController {
     }
 
 
-    /*
     @PostMapping("/api/file/upload")
-    public Response<String> fileUpload(@RequestParam("uploadFile") MultipartFile uploadFile,String path,String isUpdate) throws Exception{
+    public Response<String> fileUpload(@RequestParam("uploadFile") MultipartFile uploadFile, String path) throws Exception{
         if (uploadFile.isEmpty()) {
             throw new ServiceException("uploadFile is null");
         }
@@ -145,22 +138,7 @@ public class FileServerController {
             if( isLock(key) ){
                 return Response.fail("存在同样的文件在上传");
             }
-            String newDirectory = config.getFileUploadPath() + path;
-            String beforePath = config.getFileUploadPath();
-            String[] paths = path.split("/");
-            for (String p : paths) {
-                beforePath = beforePath + "/" + p;
-                if( !Files.exists(Paths.get(beforePath) ) ){
-                    Files.createDirectory(Paths.get(beforePath));
-                 }
-            }
-            //如果isUpdate等于1，需要判断文件是否存在，存在的话，文件合并
-            if( isUpdate != null && isUpdate.equals("1") ){
-                if( Files.exists(Paths.get(newDirectory , fileName) ) ){
-                    Files.write(Paths.get(newDirectory , fileName), uploadFile.getBytes(), StandardOpenOption.APPEND);
-                    return Response.ok(fileName);
-                }
-            }
+            String newDirectory = createChildFile(path);
             Files.deleteIfExists(Paths.get(newDirectory, fileName));
             Files.copy(uploadFile.getInputStream(), Paths.get(newDirectory , fileName));
             return Response.ok(fileName);
@@ -169,43 +147,64 @@ public class FileServerController {
         }
 
     }
-    */
 
-    /*
     @GetMapping("/api/file/download/{filename:.+}")
-    @ResponseBody
-    public ResponseEntity<?> fileDownload(@PathVariable String filename, String path , String isUpdate) {
+    public void fileDownload(@PathVariable String filename, String path , HttpServletResponse response) {
         try {
             filename = UnicodeUtil.unicodeToUtf8(filename);
             path = UnicodeUtil.unicodeToUtf8(path);
 
             path = checkPath(path);
-            String key = path + filename;
             String newDirectory = config.getFileUploadPath() + path;
             Path tempPath = Paths.get(newDirectory, filename);
-            if ( isUpdate != null && isUpdate.equals("1")) {//更新
-                if( isLock(key) ){
-                    return null;
-                }
-                String tempDirectory = config.getFileUploadPath() + TEMP_DIR;
-                tempPath = Paths.get(tempDirectory, filename);
-                if( !Files.exists( Paths.get(tempDirectory) ) ){//如果不存在删除的临时目录就创建
-                    Files.createDirectory(Paths.get(tempDirectory));
-                }
-                Files.deleteIfExists(tempPath);//如果删除临时目录中存在此文件就删除
-                if( Files.exists( Paths.get(newDirectory, filename) ) ){//如果存在此文件，就复制到删除的目录下
-                    Files.copy(Paths.get(newDirectory, filename), tempPath);
-                }
-                Files.deleteIfExists(Paths.get(newDirectory, filename));//然后删除存在的文件
-                lockMap.remove(key);
-            }
             FileSystemResource fileSystemResource = new FileSystemResource(tempPath.toString());
-            return ResponseEntity.ok(fileSystemResource);
+            responseTo(fileSystemResource.getFile(),response);
         }catch (Exception e){
             log.error(Throwables.getStackTraceAsString(e));
-            return null;
         }
     }
-    */
+
+
+    private String createChildFile(String path) throws Exception{
+        String newDirectory = config.getFileUploadPath() + path;
+        String beforePath = config.getFileUploadPath();
+        String[] paths = path.split("/");
+        for (String p : paths) {
+            beforePath = beforePath + "/" + p;
+            if( !Files.exists(Paths.get(beforePath) ) ){
+                Files.createDirectory(Paths.get(beforePath));
+            }
+        }
+        return newDirectory;
+    }
+
+    public static void responseTo(File file, HttpServletResponse res) {  //将文件发送到前端
+        res.setHeader("content-type", "application/octet-stream");
+        res.setContentType("application/octet-stream");
+        res.setHeader("Content-Disposition", "attachment;filename=" + file.getName());
+        byte[] buff = new byte[500 * 1024];
+        BufferedInputStream bis = null;
+        OutputStream os = null;
+        try {
+            os = res.getOutputStream();
+            bis = new BufferedInputStream(new FileInputStream(file));
+            int i = bis.read(buff);
+            while (i != -1) {
+                os.write(buff, 0, buff.length);
+                os.flush();
+                i = bis.read(buff);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (bis != null) {
+                try {
+                    bis.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
 
 }
